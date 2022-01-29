@@ -1,0 +1,137 @@
+---
+title: "Updated Tuesday F1 Racing"
+author: "Viwen Suresh Kumar"
+date: "1/20/2022"
+output:
+  pdf_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+install.packages('usethis', dependencies = TRUE)
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## I. Introduction and Overview
+
+This report is about understanding the f1 Tuesday racing results by using the dataset from the package shown below. It contains data on racing points involving with lap speed, its nationality of the constructor, driver standings and other factors.
+
+
+```{r, echo = TRUE, message = FALSE, warning = FALSE, eval = TRUE}
+
+# The following packages will be installed.
+if(!require(tidyverse)) install.packages("tidyverse") 
+if(!require(tidytuesdayR)) install.packages("tidytuesdayR")
+if(!require(RColorBrewer)) install.packages("RColorBrewer")
+
+
+# Load the following packages using the library() function.
+library(tidyverse)
+library(tidytuesdayR)
+library(RColorBrewer)
+theme_set(theme_light())
+
+```
+
+
+# Method & Analysis
+For this TT, there are a couple of data sets related to F1 racing. The relationship between constructors and points won per-race. Data visualization is used to understand about the racing results on which F1 car has the fastest lap speed and make comparitive results. Using the data that is shown below and being loaded and determine which data sets to use.
+
+```{r Load}
+
+tt <- tt_load("2021-09-07")
+
+# For this project I will use these three data sets
+tt$constructor_results
+tt$constructors
+tt$races
+tt$results
+
+# Filtering the data to show races that happened exclusively between 2016-2019
+races_filtered <- tt$races %>% 
+  filter(year %in% (2016:2019)) %>% 
+  select(-date, -time, -url)
+
+# Merge the cleaned race data set with the constructor points, both data sets share the raceID column
+race_constructor <- merge(x = races_filtered, y = tt$constructor_results)
+
+# Filtering constructors to get only the data I need
+clean_constructors <- tt$constructors %>% 
+  select(constructorId, name, nationality)
+
+#Change name column because they are overlapping when merging
+clean_constructors <- clean_constructors %>% 
+  rename(constructorName = name)
+
+# Selecting fastest lap speed and constructorId
+clean_results <- tt$results %>% 
+  select(constructorId, raceId, fastestLapSpeed) %>% 
+  mutate_if(is.character, as.numeric)
+
+```
+
+## Results
+
+In order to analyze whether there is correlation between constructors and points won per race where the two datasets are being merged and being cleaned up.  
+
+```{r}
+# Get max speed per race and constructor
+constructors_maxspeed <- merge(x = clean_constructors, clean_results) %>% 
+  filter(!is.na(fastestLapSpeed))
+
+# I get rid of the ID columns since I am no longer intending to merge any other data sets.
+clean_data <- merge(x = constructors_maxspeed, y = race_constructor) %>% 
+  select(-status, -constructorResultsId, -circuitId, -constructorId) %>% 
+  rename(race = name)
+
+
+clean_data %>% 
+  mutate(constructorName = fct_reorder(constructorName, fastestLapSpeed)) %>% 
+  ggplot(aes(x= fastestLapSpeed, y = constructorName)) +
+  geom_violin(aes(fill = nationality, color = nationality), width = 0.5, size = 0.1) +
+  scale_fill_brewer(palette = "Spectral") +
+  scale_color_brewer(palette = "Spectral") +
+  geom_boxplot(width = 0.2, size = 0.05, alpha = 0.3, color = "deepPink4") +
+  scale_x_log10() +
+  ggtitle("Max speed per lap (all races 2016-2019)",
+          subtitle = "Median also displayed for each constructor") +
+  theme(
+    plot.title = element_text(size = 12, face = "bold")
+  ) +
+  labs(
+    fill = "Constructor Nationality", 
+    color = "Constructor Nationality",
+    caption = "(data from Ergast API)",
+    y = NULL,
+    x = "Fastest Lap Speed (KM/H)")
+
+```
+
+## Conclusions
+
+Based on the diagram shown above, it is shown that Alfa Romeo, Racing Point and RedBull have been maintaining their high speeds overall consistently which close to the speed of the Ferrari. Additionally, the reason is that they are shown in a lower position than Alfa Romeo & Ferrari is because the data is ranked by top fastest lap speed as opposed to an average speed.
+
+Likewise, Alfa Romeo, Racing Point and Mercedes stand in the top three for lowest minimum max lap speed, which makes these specific constructors even more solid based on my opinion. Thus, this could mean that they require less time to ramp up compared to the the rest.
+
+Lastly, as a novice to F1 racing it is interesting to me that British constructors were a majority between 2016 and 2019. 
+
+# Code I found useful
+
+These are some lines of code that could be useful for future ones.
+
+```{r}
+
+# Get the highest number per column
+#tt$pit_stops %>% 
+  #summarise_if(is.numeric, max)
+
+# Show the amount of unique values of a specified column
+#tt$drivers %>% 
+  #summarise(count = n_distinct(code))
+
+```
+
