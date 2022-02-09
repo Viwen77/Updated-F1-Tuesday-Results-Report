@@ -1,0 +1,73 @@
+# The following packages will be installed.
+if(!require(tidyverse)) install.packages("tidyverse") 
+if(!require(tidytuesdayR)) install.packages("tidytuesdayR")
+if(!require(RColorBrewer)) install.packages("RColorBrewer")
+
+
+# Load the following packages using the library() function.
+library(tidyverse)
+library(tidytuesdayR)
+library(RColorBrewer)
+theme_set(theme_light())
+
+# Loading the data from tt_load on 7 September 2021
+tt <- tt_load("2021-09-07")
+
+# For this project, these three data sets will be used
+tt$constructor_results
+tt$constructors
+tt$races
+tt$results
+
+# Data is being filtered to show races that happened exclusively between 2016-2019
+races_filtered <- tt$races %>% 
+  filter(year %in% (2016:2019)) %>% 
+  select(-date, -time, -url)
+
+# The cleaned race data set is being merged with the constructor points where both data sets share the raceID column
+race_constructor <- merge(x = races_filtered, y = tt$constructor_results)
+
+# Filtering constructors to get only the data I need
+clean_constructors <- tt$constructors %>% 
+  select(constructorId, name, nationality)
+
+# Names of columns must be changed because they are overlapping when merging
+clean_constructors <- clean_constructors %>% 
+  rename(constructorName = name)
+
+# Selecting fastest lap speed and constructorId
+clean_results <- tt$results %>% 
+  select(constructorId, raceId, fastestLapSpeed) %>% 
+  mutate_if(is.character, as.numeric)
+
+# Max speed per race and Constructor are obtained using the algorithm shown below
+constructors_maxspeed <- merge(x = clean_constructors, clean_results) %>% 
+  filter(!is.na(fastestLapSpeed))
+
+# ID columns got removed since its no need to merge any other data sets
+# I get rid of the ID columns since I am no longer intending to merge any other data sets.
+clean_data <- merge(x = constructors_maxspeed, y = race_constructor) %>% 
+  select(-status, -constructorResultsId, -circuitId, -constructorId) %>% 
+  rename(race = name)
+
+# Data being cleaned using this code shown below
+clean_data %>% 
+  mutate(constructorName = fct_reorder(constructorName, fastestLapSpeed)) %>% 
+  ggplot(aes(x= fastestLapSpeed, y = constructorName)) +
+  geom_violin(aes(fill = nationality, color = nationality), width = 0.5, size = 0.1) +
+  scale_fill_brewer(palette = "Spectral") +
+  scale_color_brewer(palette = "Spectral") +
+  geom_boxplot(width = 0.2, size = 0.05, alpha = 0.3, color = "deepPink4") +
+  scale_x_log10() +
+  ggtitle("Max speed per lap (all races 2016-2019)",
+          subtitle = "Median also displayed for each constructor") +
+  theme(
+    plot.title = element_text(size = 12, face = "bold")
+  ) +
+  labs(
+    fill = "Constructor Nationality", 
+    color = "Constructor Nationality",
+    caption = "(data from Ergast API)",
+    y = NULL,
+    x = "Fastest Lap Speed (KM/H)")
+
